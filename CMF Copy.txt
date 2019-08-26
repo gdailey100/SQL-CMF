@@ -1,0 +1,431 @@
+--select * from siteinfo order by siteid
+--select * from gondolas
+--exec ImportCMF
+
+
+
+
+CREATE      PROCEDURE [dbo].[ImportCMF]
+AS
+SET NOCOUNT ON
+
+  --declare working variables
+DECLARE @New bit
+DECLARE @Sys_Id int
+DECLARE @SiteId int
+DECLARE @CenterName nvarchar(50)
+DECLARE @Address1 nvarchar(50)
+DECLARE @Address2 nvarchar(50)
+DECLARE @City nvarchar(50)
+DECLARE @State nvarchar(50)
+DECLARE @ZipCode nvarchar(15)
+DECLARE @Country nvarchar(50)
+DECLARE @SitePhone nvarchar(50)
+DECLARE @StoreType nvarchar(50)
+DECLARE @SiteOwner nvarchar(50)
+DECLARE @DistributionCenter nvarchar(50)
+DECLARE @Division nvarchar(2)
+DECLARE @DivisionID int
+DECLARE @DivisionValue int
+DECLARE @District nvarchar(2)
+DECLARE @DistrictValue int
+DECLARE @DistrictID int
+DECLARE @Region nvarchar(2)
+DECLARE @RegionID int
+DECLARE @RegionValue int
+DECLARE @Segment nvarchar(25)
+DECLARE @StoreSegment nvarchar(25)
+DECLARE @Flooring nvarchar(50)
+--DECLARE @3FootSectionsF int
+--DECLARE @PositionF nvarchar(50)
+--DECLARE @MaterialTypeF nvarchar(25)
+--DECLARE @TopTypeF nvarchar(25)
+--DECLARE @HeightF int
+--DECLARE @SportsSectionsF int
+--DECLARE @FrontEndcapF nvarchar(50)
+--DECLARE @BackEndcapF nvarchar(50)
+--DECLARE @3FootSectionsB int
+--DECLARE @PositionB nvarchar(50)
+--DECLARE @MaterialTypeB nvarchar(25)
+--DECLARE @TopTypeB nvarchar(25)
+--DECLARE @HeightB int
+--DECLARE @SportsSectionsB int
+--DECLARE @FrontEndcapB nvarchar(50)
+--DECLARE @BackEndcapB nvarchar(50)
+DECLARE @RefrigeratorBrand nvarchar(50)
+DECLARE @RefrigeratorModel nvarchar(50)
+DECLARE @RefrigeratorTwoSidedPassThru nvarchar(50)
+DECLARE @RefrigeratorCab nvarchar(50)
+DECLARE @RefrigeratorCW nvarchar(50)
+DECLARE @NumShelves int
+DECLARE @openDoor nvarchar(50)
+DECLARE @slideDoor nvarchar(50)
+DECLARE @glambia nvarchar(50)
+--DECLARE @WallSectionsCountL int
+--DECLARE @WallSectionsCountB int
+--DECLARE @WallSectionsCountR int
+--DECLARE @WallSectionsSportsL int
+--DECLARE @WallSectionsSportsB int
+--DECLARE @WallSectionsSportsR int
+--DECLARE @WallSectionsNonSportsL int
+--DECLARE @WallSectionsNonSportsB int
+--DECLARE @WallSectionsNonSportsR int
+--DECLARE @WaterfallFixturesCW int
+DECLARE @3x2LightBox nvarchar(50)
+DECLARE @LockBoxSmall int
+DECLARE @LockBoxLarge int
+DECLARE @CWSize nvarchar(50)
+DECLARE @CWLocation nvarchar(50)
+DECLARE @CWEndDeck nvarchar(50)
+DECLARE @CWBackWallShelving nvarchar(50)
+DECLARE @CWCealingGrid nvarchar(50)
+DECLARE @CWBackCashCounter nvarchar(50)
+DECLARE @LBox int
+DECLARE @POS int
+DECLARE @CWFrontShelvedSections int
+DECLARE @SalesSqFt int
+DECLARE @BackSqFt int
+DECLARE @BarsFoodsSegment nvarchar(10)
+DECLARE @HealthBeautySegment nvarchar(10)
+DECLARE @HerbsSegment nvarchar(10)
+DECLARE @GenMerchandiseSegment nvarchar(10)
+DECLARE @ProteinPerformanceSegment nvarchar(10)
+DECLARE @VitaminsWellnessSegment nvarchar(10)
+DECLARE @WeightManagementSegment nvarchar(10)
+
+--clear the CMFReport table
+DELETE FROM CMFReport
+
+--create the cursor
+DECLARE C CURSOR FOR 
+	SELECT [CENTER NBR], [CENTER NAME], [ADDRESS 1], [ADDRESS 2], [CITY], [ST], [ZIP CODE], [COUNTRY_NAME], [Phone], [LOCATION],
+		[Corporate or Franchise], [Distribution Center], [DIVISION], [DISTRICT], [REGION], [Segment], [Flooring],
+		[Store Owned Refrigerator Brand], [Store Owned Refrigerator Model], [Two-Sided Pass Thru], [Built-In Cab w/ Cold Drink], [Small Refrig Under CW],
+		[Number of Shelves],[Open Door],[Slide Door],[Glambia Refrigerator], [3x2 Light Boxes in Sports Section],
+		[Small Lock Boxes], [Large Lock Boxes], [CW Size], [CW Location], [CW End Deck], [Side CW Back Wall Shelving], [Side CW Ceiling Grid], [Back Cash Counter],
+		[nbr_pos_register], [L-Boxes], [Shelved Sections on Front CW], [Sales Area Square Footage], [Back Room SQFT], [Bars_Foods_Segment],
+		[Health_Beauty_Segment],[Herbs_Segment],[Gen_Merchandise_Segment],[Protein_Performance_Segment],[Vitamins_Wellness_Segment], [Weight_Management_Segment]
+	FROM OPENROWSET('Microsoft.Ace.OLEDB.12.0', 'Excel 12.0;Database=\\idl-imsure-web\CMF\CMF.xlsx;' , 'SELECT * FROM [qurImageSureUpload$]')
+OPEN C
+
+FETCH NEXT FROM C 
+INTO @SiteId, @CenterName , @Address1, @Address2, @City, @State, @ZipCode, @Country, @SitePhone, @StoreType, @SiteOwner, @DistributionCenter, @Division, @District, @Region,
+	@Segment, @Flooring, @RefrigeratorBrand, @RefrigeratorModel,
+	@RefrigeratorTwoSidedPassThru, @RefrigeratorCab, @RefrigeratorCW, @NumShelves, @openDoor, @slideDoor, @glambia,
+	@3x2LightBox, @LockBoxSmall, @LockBoxLarge, @CWSize, @CWLocation, @CWEndDeck, @CWBackWallShelving, @CWCealingGrid, @CWBackCashCounter,
+	@POS, @LBox, @CWFrontShelvedSections, @SalesSqFt, @BackSqFt, @BarsFoodsSegment,
+	@HealthBeautySegment, @HerbsSegment, @GenMerchandiseSegment, @ProteinPerformanceSegment,  @VitaminsWellnessSegment, @WeightManagementSegment
+
+--loop
+WHILE @@FETCH_STATUS = 0
+BEGIN
+	--check if site exists
+	IF EXISTS (SELECT * FROM siteinfo WHERE SiteId = @SiteId)
+	BEGIN
+		select @Sys_Id = Sys_ID FROM siteinfo WHERE SiteId = @SiteId
+		insert into Audit values (@Sys_Id, 1, getdate(), 0, 'CMF Upload', 'Changes to Main Store Information: Import')
+		set @New = 0
+	END
+	ELSE
+	BEGIN
+		set @New = 1
+	END
+
+
+	--start record in report table
+	INSERT INTO CMFReport VALUES (@SiteId, @New, 0, '', 0, '')
+
+
+
+	--convert values
+	--Country
+	IF (@Country is null or @Country = '') and @New = 0
+	BEGIN
+		select @Country = Country FROM siteinfo WHERE SiteId = @SiteId
+	END
+	ELSE
+	BEGIN
+		IF @Country = 'UNITED STATES'
+		BEGIN
+			SET @Country = 'US'
+		END
+		Else
+		BEGIN
+			IF @Country = 'CANADA'
+			BEGIN
+				SET @Country = 'CA'
+			END
+			ELSE
+			BEGIN
+				IF @Country = 'Puerto Rico'
+				BEGIN
+					SET @Country = 'RQ'
+				END
+				ELSE
+				BEGIN
+					IF @Country ='Other'
+					BEGIN
+						SET @Country = 'OT'
+					END
+				END
+			END
+		END
+	END
+
+--make the changes
+	IF @New = 1
+	BEGIN
+		--Flooring
+		IF @Flooring = 'Ceramic' or @Flooring = 'Vinyl'
+		BEGIN
+			SET @Flooring = @Flooring + ' Tile'
+		END
+		
+		IF @Flooring not in (select ITEM_VALUE from LOOKUP_Item where List_Id = 10)
+		BEGIN
+			SET @Flooring = ''
+			UPDATE CMFReport SET WarningCount = WarningCount + 1, WarningDescription = WarningDescription + 'Floor Type not recognized. Setting Floor Type to blank; ' where SiteID = @SiteId
+		END
+	
+	
+		--Location/Store Type
+		IF @StoreType = 'Strip'
+		BEGIN
+			SET @StoreType = 'Strip'
+		END
+		Else
+		BEGIN
+			IF @StoreType = 'Downtown'
+			BEGIN
+				SET @StoreType = 'Downtown'
+			END
+			ELSE
+			BEGIN
+				IF @StoreType = 'Military'
+				BEGIN
+					SET @StoreType = 'Military'
+				END
+				ELSE
+				BEGIN
+
+					IF @StoreType = 'Outlet'
+				BEGIN
+					SET @StoreType = 'Outlet'
+				END
+				ELSE
+				BEGIN
+					
+					IF @StoreType = 'Mall'
+					BEGIN
+						SET @StoreType = 'Mall'
+					END
+					ELSE
+					BEGIN
+						UPDATE CMFReport SET WarningCount = WarningCount + 1, WarningDescription = WarningDescription + 'Store Type defaulted to "Mall"; ' where SiteID = @SiteId
+						SET @StoreType = 'Mall'
+
+						END
+					END
+				END
+			END
+		END
+	
+		--Site Owner/Corporate or Franchise
+		IF @SiteOwner = 'F' or @SiteOwner like 'Franchise%'
+		BEGIN
+			SET @SiteOwner = 'Franchise'
+		END
+		ELSE
+		BEGIN
+			IF @SiteOwner = 'C' or @SiteOwner like 'Corporate%'
+			BEGIN
+				SET @SiteOwner = 'Corporate'
+			END
+			ELSE
+			BEGIN
+				UPDATE CMFReport SET WarningCount = WarningCount + 1, WarningDescription = WarningDescription + 'Site Owner defaulted to "Corporate"; ' where SiteID = @SiteId
+				SET @SiteOwner = 'Corporate'
+			END
+		END
+		
+		--DistributionCenter
+		IF @DistributionCenter = 'Phoenix'
+		BEGIN
+			SET @DistributionCenter = 'PHX'
+		END
+		ELSE
+		BEGIN
+			IF @DistributionCenter = 'Anderson'
+			BEGIN
+				SET @DistributionCenter = 'ATL'
+			END
+				ELSE
+				BEGIN
+				IF @DistributionCenter = 'Canada'
+				BEGIN
+					SET @DistributionCenter = 'JAM'
+				END
+				ELSE
+				BEGIN
+					IF @DistributionCenter = 'Leetsdale'
+					BEGIN
+						SET @DistributionCenter = 'PGH'
+					END
+					ELSE
+					BEGIN
+						IF @DistributionCenter = 'Indianapolis'
+						BEGIN
+						SET @DistributionCenter = 'IND'
+						END
+					BEGIN
+						UPDATE CMFReport SET WarningCount = WarningCount + 1, WarningDescription = WarningDescription + 'Distribution Center defaulted to "PGH"; ' where SiteID = @SiteId
+						SET @DistributionCenter = 'PGH'
+						END
+					END
+				END
+			END
+		END
+	
+	
+		--District/region/division doesnt match up
+		--select * from GNCStructure
+		set @DivisionID = null
+		set @DistrictID = null
+		set @RegionID = null
+	
+		select @DivisionID = StructureId from GNCStructure where ParentId is null and Type = 'Division' and Title = CAST(@Division AS INT)
+	
+		IF @Division is not null
+		BEGIN
+			select @DistrictID = StructureId from GNCStructure where ParentId = @DivisionID and Type = 'District' and Title = CAST(@District AS INT)
+			select @RegionID = StructureId from GNCStructure where ParentId = @DivisionID and Type = 'Region' and Title = CAST(@Region AS INT)
+	
+			IF @DistrictID is null
+			BEGIN
+				UPDATE CMFReport SET WarningCount = WarningCount + 1, WarningDescription = WarningDescription + 'District was invalid; ' where SiteID = @SiteId
+			END
+	
+			IF @RegionID is null
+			BEGIN
+				UPDATE CMFReport SET WarningCount = WarningCount + 1, WarningDescription = WarningDescription + 'Region was invalid; ' where SiteID = @SiteId
+			END
+		END
+		ELSE
+		BEGIN
+			UPDATE CMFReport SET WarningCount = WarningCount + 1, WarningDescription = WarningDescription + 'Division was invalid; ' where SiteID = @SiteId
+		END
+
+--create the site record
+		select @Sys_Id = isnull(MAX(sys_id), 0) + 1 from SiteInfo
+
+		insert into SiteInfo values (@Sys_Id, @SiteId, @CenterName, 'White Store', @StoreType, @SiteOwner, @Address1, @Address2, @City, @State,
+		NULL, @ZipCode, @Country, @SitePhone, NULL, NULL, @DistributionCenter, @DivisionID, CAST(@Division AS INT), @DistrictID, 
+		CAST(@District AS INT), @RegionID, CAST(@Region AS INT), @Segment, NULL, NULL, NULL, NULL, NULL, @Flooring, 
+		NULL, 0, getdate(), 0, getdate(), NULL, NULL, 1, 'Active', 'Y',
+		NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 
+		NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 
+		NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 
+		NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 
+		NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+		@BarsFoodsSegment, @HealthBeautySegment, @HerbsSegment, @GenMerchandiseSegment, @ProteinPerformanceSegment,  @VitaminsWellnessSegment, @WeightManagementSegment )
+		
+		
+		--Displays
+		delete from StoreInfoMisc where Sys_Id = @Sys_Id
+		INSERT INTO StoreInfoMisc values (@Sys_Id, NULL, @LBox, @POS, @CWFrontShelvedSections, NULL, NULL, NULL, NULL, NULL,
+			NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 
+			NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, NULL, 0, 
+			NULL, 1, NULL, NULL, NULL, NULL, @LockBoxSmall, @LockBoxLarge, NULL, NULL, 
+			NULL, NULL, 0, getdate(), 0, getdate(), NULL, NULL, NULL, NULL, NULL, 
+			NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 
+			NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 
+			NULL, NULL, NULL, NULL, NULL, NULL, @3x2LightBox, NULL, NULL, NULL, 
+			NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 
+			NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 
+			NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 
+			NULL, NULL, NULL, NULL, NULL, @SalesSqFt, @BackSqFt, NULL, NULL, NULL, 
+			'No', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 
+			NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 
+			NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 
+			NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 
+			NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+			NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+			NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+			NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+			NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 
+			NULL, NULL, NULL, NULL, NULL, NULL, NULL)
+		
+		
+		--Refrigerators
+		delete from Refrigerators where Sys_Id = @Sys_Id
+		insert into Refrigerators values (@Sys_Id, NULL, NULL, NULL, @RefrigeratorCab, 0, getdate(), 0, getdate(), @RefrigeratorBrand, @RefrigeratorModel, NULL, @RefrigeratorTwoSidedPassThru, @RefrigeratorCW,@NumShelves, @openDoor, @slideDoor, @glambia)
+		
+		
+		--Cash Wrap
+		
+		delete from CashWraps where Sys_Id = @Sys_Id
+		
+		insert into CashWraps values(@Sys_Id, @CWSize, @CWLocation, @CWEndDeck, @CWBackWallShelving, @CWCealingGrid, @CWBackCashCounter, 0, getdate(), 0, getdate(), NULL, NULL, NULL, NULL, NULL, NULL, NULL)
+		
+	END
+	ELSE	BEGIN
+		--exclude nulls
+		IF (@CenterName is null or @CenterName = '')
+			select @CenterName = CenterName FROM siteinfo WHERE SiteId = @SiteId
+		IF (@Address1 is null or @Address1 = '')
+			select @Address1 = Address1 FROM siteinfo WHERE SiteId = @SiteId
+		IF (@Address2 is null or @Address2 = '')
+			select @Address2 = Address2 FROM siteinfo WHERE SiteId = @SiteId
+		IF (@City is null or @City = '')
+			select @City = City FROM siteinfo WHERE SiteId = @SiteId
+		IF (@State is null or @State = '')
+			select @State = State FROM siteinfo WHERE SiteId = @SiteId
+		IF (@ZipCode is null or @ZipCode = '')
+			select @ZipCode = ZipCode FROM siteinfo WHERE SiteId = @SiteId
+		IF (@Country is null or @Country = '')
+			select @Country = Country FROM siteinfo WHERE SiteId = @SiteId
+		IF (@SitePhone is null or @SitePhone = '')
+			select @SitePhone = SitePhone FROM siteinfo WHERE SiteId = @SiteId
+		IF (@BarsFoodsSegment is null or @BarsFoodsSegment = '')
+				select @BarsFoodsSegment = BarsFoodsSegment FROM siteinfo WHERE SiteId = @SiteId
+		IF (@HealthBeautySegment is null or @HealthBeautySegment = '')
+				select @HealthBeautySegment = HealthBeautySegment FROM siteinfo WHERE SiteId = @SiteId
+			IF (@HerbsSegment is null or @HerbsSegment = '')
+				select @HerbsSegment = HerbsSegment FROM siteinfo WHERE SiteId = @SiteId
+			IF (@GenMerchandiseSegment is null or @GenMerchandiseSegment = '')
+				select @GenMerchandiseSegment = GenMerchandiseSegment FROM siteinfo WHERE SiteId = @SiteId
+			IF (@ProteinPerformanceSegment is null or @ProteinPerformanceSegment = '')
+				select @ProteinPerformanceSegment = ProteinPerformanceSegment FROM siteinfo WHERE SiteId = @SiteId
+			IF (@VitaminsWellnessSegment is null or @VitaminsWellnessSegment = '')
+				select @VitaminsWellnessSegment = VitaminsWellnessSegment FROM siteinfo WHERE SiteId = @SiteId
+			IF (@WeightManagementSegment is null or @WeightManagementSegment = '')
+				select @WeightManagementSegment = WeightManagementSegment FROM siteinfo WHERE SiteId = @SiteId
+			
+		
+	
+		--make update  @DivisionValue
+		update SiteInfo set CenterName = @CenterName, Address1 = @Address1, Address2 = @Address2,City = @City, State = @State, ZipCode = @ZipCode, Country = @Country, SitePhone = @SitePhone,
+			BarsFoodsSegment = @BarsFoodsSegment, HealthBeautySegment = @HealthBeautySegment, HerbsSegment = @HerbsSegment, GenMerchandiseSegment = @GenMerchandiseSegment,
+			ProteinPerformanceSegment = @ProteinPerformanceSegment, VitaminsWellnessSegment = @VitaminsWellnessSegment, WeightManagementSegment = @WeightManagementSegment, StoreSegment = @Segment
+		-- , Division = @Division,
+			--  District = @District, Region = @Region
+		where SiteId = @SiteId
+	END
+
+
+
+	FETCH NEXT FROM C 
+	INTO @SiteId, @CenterName , @Address1, @Address2, @City, @State, @ZipCode, @Country, @SitePhone, @StoreType, @SiteOwner, @DistributionCenter, @Division, @District, @Region,
+		@Segment, @Flooring,  @RefrigeratorBrand, @RefrigeratorModel,
+		@RefrigeratorTwoSidedPassThru, @RefrigeratorCab, @RefrigeratorCW, @NumShelves, @openDoor, @slideDoor, @glambia,
+		@3x2LightBox, @LockBoxSmall, @LockBoxLarge, @CWSize, @CWLocation, @CWEndDeck, @CWBackWallShelving, @CWCealingGrid, @CWBackCashCounter,
+		@LBox, @POS, @CWFrontShelvedSections, @SalesSqFt, @BackSqFt, @BarsFoodsSegment,
+	@HealthBeautySegment, @HerbsSegment, @GenMerchandiseSegment, @ProteinPerformanceSegment,  @VitaminsWellnessSegment, @WeightManagementSegment
+END
+
+CLOSE C
+DEALLOCATE C
+
+SELECT * FROM CMFReport order by siteid
+SET NOCOUNT OFF
+GO
